@@ -69,6 +69,46 @@ class RestApiHandlers {
                 return current_user_can('manage_options');
             }
         ]);
+
+        register_rest_route('cb-fake-post-ai/v1', '/generate-posts', [
+            'methods' => 'POST',
+            'callback' => [$this, 'generate_posts'],
+            'permission_callback' => function () {
+                return current_user_can('manage_options');
+            },
+            'args' => [
+                'numPostsMin' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ],
+                'numPostsMax' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ],
+                'titleMin' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ],
+                'titleMax' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ],
+                'contentMin' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ],
+                'contentMax' => [
+                    'required' => true,
+                    'type' => 'integer',
+                    'minimum' => 1
+                ]
+            ]
+        ]);
     }
 
     public function get_plugin_stats() {
@@ -147,5 +187,121 @@ class RestApiHandlers {
             'success' => true,
             'data' => $settings
         ];
+    }
+
+    public function generate_posts($request) {
+        $params = $request->get_params();
+        
+        // Validate ranges
+        if ($params['numPostsMax'] < $params['numPostsMin']) {
+            return new \WP_Error('invalid_range', 'Max posts must be greater than or equal to min posts', ['status' => 400]);
+        }
+        
+        if ($params['titleMax'] < $params['titleMin']) {
+            return new \WP_Error('invalid_range', 'Max title size must be greater than or equal to min title size', ['status' => 400]);
+        }
+        
+        if ($params['contentMax'] < $params['contentMin']) {
+            return new \WP_Error('invalid_range', 'Max content size must be greater than or equal to min content size', ['status' => 400]);
+        }
+
+        // Get credit setting from saved options
+        $saved_settings = get_option('cb_fake_post_ai_settings', []);
+        $show_credit = isset($saved_settings['credit']) ? $saved_settings['credit'] === 'yes' : true;
+
+        // Lorem ipsum text for generating content
+        $lorem_words = explode(' ', 'Lorem ipsum dolor sit amet consectetur adipiscing elit Quisque faucibus ex sapien vitae pellentesque sem placerat In id cursus mi pretium tellus duis convallis Tempus leo eu aenean sed diam urna tempor Pulvinar vivamus fringilla lacus nec metus bibendum egestas Iaculis massa nisl malesuada lacinia integer nunc posuere Ut hendrerit semper vel class aptent taciti sociosqu Ad litora torquent per conubia nostra inceptos himenaeos');
+
+        // Determine number of posts to generate
+        $num_posts = ($params['numPostsMin'] === $params['numPostsMax']) 
+            ? $params['numPostsMin'] 
+            : rand($params['numPostsMin'], $params['numPostsMax']);
+
+        $generated_posts = [];
+        $current_user_id = get_current_user_id();
+
+        for ($i = 0; $i < $num_posts; $i++) {
+            // Generate title
+            $title_length = ($params['titleMin'] === $params['titleMax']) 
+                ? $params['titleMin'] 
+                : rand($params['titleMin'], $params['titleMax']);
+            
+            $title_words = array_slice($lorem_words, 0, $title_length);
+            shuffle($title_words);
+            $title = ucfirst(implode(' ', array_slice($title_words, 0, $title_length)));
+
+            // Generate content
+            $content_length = ($params['contentMin'] === $params['contentMax']) 
+                ? $params['contentMin'] 
+                : rand($params['contentMin'], $params['contentMax']);
+            
+            // Create multiple paragraphs for longer content
+            $paragraphs = [];
+            $words_per_paragraph = max(20, intval($content_length / max(1, intval($content_length / 30)))); // Aim for ~30 words per paragraph
+            $remaining_words = $content_length;
+            
+            while ($remaining_words > 0) {
+                $paragraph_words = min($words_per_paragraph, $remaining_words);
+                $paragraph_content = [];
+                
+                for ($j = 0; $j < $paragraph_words; $j++) {
+                    $paragraph_content[] = $lorem_words[array_rand($lorem_words)];
+                }
+                
+                $paragraph_text = ucfirst(implode(' ', $paragraph_content)) . '.';
+                $paragraphs[] = $paragraph_text;
+                $remaining_words -= $paragraph_words;
+            }
+
+            // Create Gutenberg blocks for each paragraph
+            $content = '';
+            foreach ($paragraphs as $paragraph) {
+                $content .= '<!-- wp:paragraph -->' . "\n";
+                $content .= '<p>' . $paragraph . '</p>' . "\n";
+                $content .= '<!-- /wp:paragraph -->';
+                if (count($paragraphs) > 1) {
+                    $content .= "\n\n";
+                }
+            }
+
+            // Add credit link as a separate Gutenberg block if enabled
+            if ($show_credit) {
+                $content .= "\n\n" . '<!-- wp:paragraph -->' . "\n";
+                $content .= '<p><em>Generated with <a href="#">CB Fake Post AI</a></em></p>' . "\n";
+                $content .= '<!-- /wp:paragraph -->';
+            }
+
+            // Create post
+            $post_data = [
+                'post_title' => $title,
+                'post_content' => $content,
+                'post_status' => 'publish',
+                'post_author' => $current_user_id,
+                'post_type' => 'post'
+            ];
+
+            $post_id = wp_insert_post($post_data);
+
+            if (!is_wp_error($post_id)) {
+                $generated_posts[] = [
+                    'id' => $post_id,
+                    'title' => $title,
+                    'content_length' => $content_length
+                ];
+            }
+        }
+
+        if (count($generated_posts) > 0) {
+            return [
+                'success' => true,
+                'message' => sprintf('Successfully generated %d post(s)', count($generated_posts)),
+                'data' => [
+                    'generated_count' => count($generated_posts),
+                    'posts' => $generated_posts
+                ]
+            ];
+        } else {
+            return new \WP_Error('generation_failed', 'Failed to generate posts', ['status' => 500]);
+        }
     }
 }

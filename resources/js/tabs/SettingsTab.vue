@@ -51,9 +51,14 @@
         </div>
       </div>
 
-      <button class="submit-btn" type="submit" :disabled="isSaving">
-        {{ isSaving ? 'Saving...' : 'Save Changes' }}
-      </button>
+      <div class="button-group">
+        <button class="submit-btn" type="submit" :disabled="isSaving">
+          {{ isSaving ? 'Saving...' : 'Save Changes' }}
+        </button>
+        <button class="generate-btn" type="button" @click="generatePosts" :disabled="isGenerating">
+          {{ isGenerating ? 'Generating...' : 'Generate Posts' }}
+        </button>
+      </div>
     </form>
   </div>
 </template>
@@ -84,7 +89,8 @@ export default {
         contentMax: 100
       },
       isLoading: false,
-      isSaving: false
+      isSaving: false,
+      isGenerating: false
     };
   },
   async mounted() {
@@ -166,6 +172,49 @@ export default {
         this.error('Network error: Failed to save settings');
       } finally {
         this.isSaving = false;
+      }
+    },
+
+    async generatePosts() {
+      // Validate settings first
+      if (
+        this.settings.numPostsMin < 1 ||
+        this.settings.numPostsMax < this.settings.numPostsMin ||
+        this.settings.titleMin < 1 ||
+        this.settings.titleMax < this.settings.titleMin ||
+        this.settings.contentMin < 1 ||
+        this.settings.contentMax < this.settings.contentMin
+      ) {
+        this.error('Please check your settings values before generating posts.');
+        return;
+      }
+
+      this.isGenerating = true;
+      
+      try {
+        const response = await fetch(window.SuitePressSettings.generatePostsUrl, {
+          method: 'POST',
+          headers: {
+            'X-WP-Nonce': window.SuitePressSettings.nonce,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(this.settings)
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          const message = result.message || 'Posts generated successfully!';
+          this.success(message);
+        } else {
+          const errorMessage = result.message || 'Failed to generate posts';
+          this.error(errorMessage);
+        }
+      } catch (error) {
+        console.error('Failed to generate posts:', error);
+        this.error('Network error: Failed to generate posts');
+      } finally {
+        this.isGenerating = false;
       }
     }
   }
@@ -283,6 +332,12 @@ export default {
   display: block;
 }
 
+.button-group {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
 .submit-btn {
   background: linear-gradient(135deg, #008080 0%, #006666 100%);
   color: white;
@@ -294,7 +349,44 @@ export default {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 128, 128, 0.2);
-  margin-top: 8px;
+}
+
+.generate-btn {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 32px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+}
+
+.generate-btn:hover {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+  transform: translateY(-1px);
+}
+
+.generate-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+}
+
+.generate-btn:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.generate-btn:disabled:hover {
+  background: #d1d5db;
+  transform: none;
+  box-shadow: none;
 }
 
 .submit-btn:hover {
