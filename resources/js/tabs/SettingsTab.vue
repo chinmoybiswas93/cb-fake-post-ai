@@ -1,52 +1,86 @@
 <template>
   <div class="settings-container">
     <form class="elegant-form" @submit.prevent="handleSubmit">
-      <div class="form-section">
-        <div class="form-row">
-          <label class="form-label">How many posts to generate?</label>
-          <div class="range-input">
-            <input type="number" class="range-field" v-model.number="settings.numPostsMin" min="1" placeholder="Min" />
-            <span class="range-separator">–</span>
-            <input type="number" class="range-field" v-model.number="settings.numPostsMax" :min="settings.numPostsMin" placeholder="Max" />
+      <div class="two-column-layout">
+        <!-- Left Column -->
+        <div class="left-column">
+          <div class="form-section">
+            <div class="form-row">
+              <label class="form-label">How many posts to generate?</label>
+              <div class="range-input">
+                <input type="number" class="range-field" v-model.number="settings.numPostsMin" min="1" placeholder="Min" />
+                <span class="range-separator">–</span>
+                <input type="number" class="range-field" v-model.number="settings.numPostsMax" :min="settings.numPostsMin" placeholder="Max" />
+              </div>
+            </div>
+            <small class="form-hint">Set min and max, or the same value for a fixed amount.</small>
+          </div>
+
+          <div class="form-section">
+            <div class="form-row">
+              <label class="form-label">Post title size (words)</label>
+              <div class="range-input">
+                <input type="number" class="range-field" v-model.number="settings.titleMin" min="1" placeholder="Min" />
+                <span class="range-separator">–</span>
+                <input type="number" class="range-field" v-model.number="settings.titleMax" :min="settings.titleMin" placeholder="Max" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-row">
+              <label class="form-label">Post content size (words)</label>
+              <div class="range-input">
+                <input type="number" class="range-field" v-model.number="settings.contentMin" min="1" placeholder="Min" />
+                <span class="range-separator">–</span>
+                <input type="number" class="range-field" v-model.number="settings.contentMax" :min="settings.contentMin" placeholder="Max" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-row">
+              <label class="form-label">Show credit link below posts?</label>
+              <div class="radio-group">
+                <label class="radio-option">
+                  <input type="radio" value="yes" v-model="form.credit" />
+                  <span class="radio-label">Yes</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" value="no" v-model="form.credit" />
+                  <span class="radio-label">No</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
-        <small class="form-hint">Set min and max, or the same value for a fixed amount.</small>
-      </div>
 
-      <div class="form-section">
-        <div class="form-row">
-          <label class="form-label">Post title size (words)</label>
-          <div class="range-input">
-            <input type="number" class="range-field" v-model.number="settings.titleMin" min="1" placeholder="Min" />
-            <span class="range-separator">–</span>
-            <input type="number" class="range-field" v-model.number="settings.titleMax" :min="settings.titleMin" placeholder="Max" />
-          </div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <div class="form-row">
-          <label class="form-label">Post content size (words)</label>
-          <div class="range-input">
-            <input type="number" class="range-field" v-model.number="settings.contentMin" min="1" placeholder="Min" />
-            <span class="range-separator">–</span>
-            <input type="number" class="range-field" v-model.number="settings.contentMax" :min="settings.contentMin" placeholder="Max" />
-          </div>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <div class="form-row">
-          <label class="form-label">Show credit link below posts?</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input type="radio" value="yes" v-model="form.credit" />
-              <span class="radio-label">Yes</span>
-            </label>
-            <label class="radio-option">
-              <input type="radio" value="no" v-model="form.credit" />
-              <span class="radio-label">No</span>
-            </label>
+        <!-- Right Column -->
+        <div class="right-column">
+          <div class="form-section">
+            <label class="form-label section-title">Categories</label>
+            <div class="categories-container">
+              <div v-if="loadingCategories" class="loading-message">
+                Loading categories...
+              </div>
+              <div v-else-if="categories.length === 0" class="no-categories-message">
+                No categories found. <a href="/wp-admin/edit-tags.php?taxonomy=category" target="_blank">Create some categories</a> first.
+              </div>
+              <div v-else class="checkbox-group">
+                <label v-for="category in categories" :key="category.id" class="checkbox-option">
+                  <input 
+                    type="checkbox" 
+                    :value="category.id" 
+                    v-model="settings.categories"
+                  />
+                  <span class="checkbox-label">
+                    {{ category.name }}
+                    <span v-if="category.count > 0" class="post-count">({{ category.count }})</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <small class="form-hint">Select categories for the generated posts. If none selected, posts will be uncategorized.</small>
           </div>
         </div>
       </div>
@@ -86,15 +120,21 @@ export default {
         titleMin: 3,
         titleMax: 8,
         contentMin: 30,
-        contentMax: 100
+        contentMax: 100,
+        categories: []
       },
+      categories: [],
+      loadingCategories: false,
       isLoading: false,
       isSaving: false,
       isGenerating: false
     };
   },
   async mounted() {
-    await this.loadSettings();
+    await Promise.all([
+      this.loadSettings(),
+      this.loadCategories()
+    ]);
   },
   methods: {
     async loadSettings() {
@@ -126,6 +166,31 @@ export default {
       }
     },
 
+    async loadCategories() {
+      this.loadingCategories = true;
+      try {
+        const response = await fetch(window.SuitePressSettings.categoriesUrl, {
+          method: 'GET',
+          headers: {
+            'X-WP-Nonce': window.SuitePressSettings.nonce,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            this.categories = result.data;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+        this.error('Failed to load categories.');
+      } finally {
+        this.loadingCategories = false;
+      }
+    },
+
     async handleSubmit() {
       // Validate values
       if (
@@ -145,7 +210,8 @@ export default {
       try {
         const settingsData = {
           ...this.settings,
-          credit: this.form.credit
+          credit: this.form.credit,
+          categories: this.settings.categories || []
         };
 
         const response = await fetch(window.SuitePressSettings.settingsRestUrl, {
@@ -222,15 +288,108 @@ export default {
 </script>
 <style scoped>
 .settings-container {
-  max-width: 600px;
+  max-width: 900px;
 }
 
 .elegant-form {
   margin-top: 24px;
 }
 
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 768px) {
+  .two-column-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
 .form-section {
   margin-bottom: 24px;
+}
+
+.section-title {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.categories-container {
+  margin-top: 12px;
+}
+
+.loading-message, .no-categories-message {
+  color: #6b7280;
+  font-style: italic;
+  padding: 16px;
+  text-align: center;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.no-categories-message a {
+  color: #008080;
+  text-decoration: none;
+}
+
+.no-categories-message a:hover {
+  text-decoration: underline;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.checkbox-option:hover {
+  background: #ffffff;
+}
+
+.checkbox-option input[type="checkbox"] {
+  margin-right: 10px;
+  width: 16px;
+  height: 16px;
+  accent-color: #008080;
+  cursor: pointer;
+}
+
+.checkbox-label {
+  user-select: none;
+  flex: 1;
+}
+
+.post-count {
+  color: #6b7280;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .form-row {
@@ -245,7 +404,7 @@ export default {
   font-weight: 500;
   color: #374151;
   letter-spacing: -0.01em;
-  min-width: 220px;
+  min-width: 200px;
   flex-shrink: 0;
 }
 

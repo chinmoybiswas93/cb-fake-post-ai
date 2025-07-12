@@ -58,6 +58,13 @@ class RestApiHandlers {
                     'required' => true,
                     'type' => 'string',
                     'enum' => ['yes', 'no']
+                ],
+                'categories' => [
+                    'required' => false,
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'integer'
+                    ]
                 ]
             ]
         ]);
@@ -109,6 +116,14 @@ class RestApiHandlers {
                 ]
             ]
         ]);
+
+        register_rest_route('cb-fake-post-ai/v1', '/categories', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_categories'],
+            'permission_callback' => function () {
+                return current_user_can('manage_options');
+            }
+        ]);
     }
 
     public function get_plugin_stats() {
@@ -146,7 +161,8 @@ class RestApiHandlers {
             'titleMax' => intval($params['titleMax']),
             'contentMin' => intval($params['contentMin']),
             'contentMax' => intval($params['contentMax']),
-            'credit' => sanitize_text_field($params['credit'])
+            'credit' => sanitize_text_field($params['credit']),
+            'categories' => isset($params['categories']) ? array_map('intval', $params['categories']) : []
         ];
 
         // Get current settings to check if anything changed
@@ -178,7 +194,8 @@ class RestApiHandlers {
             'titleMax' => 8,
             'contentMin' => 30,
             'contentMax' => 100,
-            'credit' => 'yes'
+            'credit' => 'yes',
+            'categories' => []
         ];
 
         $settings = get_option('cb_fake_post_ai_settings', $default_settings);
@@ -208,6 +225,7 @@ class RestApiHandlers {
         // Get credit setting from saved options
         $saved_settings = get_option('cb_fake_post_ai_settings', []);
         $show_credit = isset($saved_settings['credit']) ? $saved_settings['credit'] === 'yes' : true;
+        $selected_categories = isset($saved_settings['categories']) ? $saved_settings['categories'] : [];
 
         // Lorem ipsum text for generating content
         $lorem_words = explode(' ', 'Lorem ipsum dolor sit amet consectetur adipiscing elit Quisque faucibus ex sapien vitae pellentesque sem placerat In id cursus mi pretium tellus duis convallis Tempus leo eu aenean sed diam urna tempor Pulvinar vivamus fringilla lacus nec metus bibendum egestas Iaculis massa nisl malesuada lacinia integer nunc posuere Ut hendrerit semper vel class aptent taciti sociosqu Ad litora torquent per conubia nostra inceptos himenaeos');
@@ -280,28 +298,93 @@ class RestApiHandlers {
                 'post_type' => 'post'
             ];
 
+            // Add categories to post data if selected
+            if (!empty($selected_categories)) {
+                $post_data['post_category'] = $selected_categories;
+                
+                // Temporarily disable default category assignment
+                add_filter('wp_insert_post_empty_content', '__return_false');
+            }
+
             $post_id = wp_insert_post($post_data);
 
             if (!is_wp_error($post_id)) {
+                // Double-check category assignment with wp_set_object_terms for reliability
+                if (!empty($selected_categories)) {
+                    wp_set_object_terms($post_id, $selected_categories, 'category');
+                    
+                    // Remove default category if it was auto-assigned and we have specific categories
+                    $default_category = get_option('default_category');
+                    if ($default_category && !in_array($default_category, $selected_categories)) {
+                        wp_remove_object_terms($post_id, $default_category, 'category');
+                    }
+                }
+
                 $generated_posts[] = [
                     'id' => $post_id,
                     'title' => $title,
-                    'content_length' => $content_length
+                    'content_length' => $content_length,
+                    'categories' => $selected_categories
                 ];
             }
+            
+            // Re-enable default category assignment
+            remove_filter('wp_insert_post_empty_content', '__return_false');
         }
 
         if (count($generated_posts) > 0) {
+            $category_names = [];
+            $category_info = '';
+            
+            if (!empty($selected_categories)) {
+                foreach ($selected_categories as $cat_id) {
+                    $category = get_category($cat_id);
+                    if ($category) {
+                        $category_names[] = $category->name;
+                    }
+                }
+                $category_info = !empty($category_names) 
+                    ? ' in categories: ' . implode(', ', $category_names)
+                    : '';
+            } else {
+                $category_info = ' (uncategorized)';
+            }
+                
             return [
                 'success' => true,
-                'message' => sprintf('Successfully generated %d post(s)', count($generated_posts)),
+                'message' => sprintf('Successfully generated %d post(s)%s', count($generated_posts), $category_info),
                 'data' => [
                     'generated_count' => count($generated_posts),
-                    'posts' => $generated_posts
+                    'posts' => $generated_posts,
+                    'applied_categories' => $selected_categories
                 ]
             ];
         } else {
             return new \WP_Error('generation_failed', 'Failed to generate posts', ['status' => 500]);
         }
+    }
+
+    public function get_categories() {
+        $categories = get_categories([
+            'taxonomy' => 'category',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC'
+        ]);
+
+        $category_list = [];
+        foreach ($categories as $category) {
+            $category_list[] = [
+                'id' => $category->term_id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'count' => $category->count
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => $category_list
+        ];
     }
 }

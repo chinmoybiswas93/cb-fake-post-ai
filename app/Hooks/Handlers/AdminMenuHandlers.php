@@ -82,6 +82,7 @@ class AdminMenuHandlers
                 'restUrl' => esc_url_raw(rest_url('suitepress/v1/plugin-stats')),
                 'settingsRestUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/settings')),
                 'generatePostsUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/generate-posts')),
+                'categoriesUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/categories')),
                 'nonce' => wp_create_nonce('wp_rest'),
                 'ajaxurl' => admin_url('admin-ajax.php'),
             ]);
@@ -103,6 +104,7 @@ class AdminMenuHandlers
                 'restUrl' => esc_url_raw(rest_url('suitepress/v1/plugin-stats')),
                 'settingsRestUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/settings')),
                 'generatePostsUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/generate-posts')),
+                'categoriesUrl' => esc_url_raw(rest_url('cb-fake-post-ai/v1/categories')),
                 'nonce' => wp_create_nonce('wp_rest'),
                 'ajaxurl' => admin_url('admin-ajax.php'),
             ]);
