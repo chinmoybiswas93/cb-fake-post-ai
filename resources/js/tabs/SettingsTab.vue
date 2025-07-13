@@ -364,7 +364,7 @@ export default {
   cursor: pointer;
   font-size: 14px;
   color: #374151;
-  padding: 8px 12px;
+  padding: 4px 12px;
   border-radius: 4px;
   transition: background-color 0.2s ease;
 }

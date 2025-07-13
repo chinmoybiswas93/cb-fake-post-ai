@@ -15,7 +15,7 @@
             v-for="tab in tabs"
             :key="tab"
             :class="['cb-tab', { active: activeTab === tab }]"
-            @click="activeTab = tab"
+            @click="setActiveTab(tab)"
           >
             {{ tab }}
           </button>
@@ -34,6 +34,7 @@
 
 <script>
 import SettingsTab from './tabs/SettingsTab.vue';
+import AiGenerateTab from './tabs/AiGenerateTab.vue';
 import ToolsTab from './tabs/ToolsTab.vue';
 import HowToUseTab from './tabs/HowToUseTab.vue';
 import AboutTab from './tabs/AboutTab.vue';
@@ -43,6 +44,7 @@ export default {
   name: "AdminApp",
   components: {
     SettingsTab,
+    AiGenerateTab,
     ToolsTab,
     HowToUseTab,
     AboutTab,
@@ -50,18 +52,48 @@ export default {
   },
   data() {
     return {
-      tabs: ["Settings", "Tools", "How to use", "About"],
-      activeTab: "Settings",
+      tabs: ["Settings", "AI Generate", "Tools", "How to use", "About"],
+      activeTab: this.getStoredTab(),
       form: {
         credit: "yes"
       }
     };
+  },
+  mounted() {
+    // Ensure the stored tab is valid, fallback to Settings if not
+    if (!this.tabs.includes(this.activeTab)) {
+      this.activeTab = "Settings";
+      this.saveActiveTab("Settings");
+    }
+  },
+  methods: {
+    setActiveTab(tab) {
+      this.activeTab = tab;
+      this.saveActiveTab(tab);
+    },
+    getStoredTab() {
+      try {
+        return localStorage.getItem('cb-fake-post-ai-active-tab') || "Settings";
+      } catch (error) {
+        console.warn('localStorage not available, using default tab');
+        return "Settings";
+      }
+    },
+    saveActiveTab(tab) {
+      try {
+        localStorage.setItem('cb-fake-post-ai-active-tab', tab);
+      } catch (error) {
+        console.warn('localStorage not available, tab state will not persist');
+      }
+    }
   },
   computed: {
     currentTabComponent() {
       switch (this.activeTab) {
         case 'Settings':
           return 'SettingsTab';
+        case 'AI Generate':
+          return 'AiGenerateTab';
         case 'Tools':
           return 'ToolsTab';
         case 'How to use':
@@ -154,7 +186,7 @@ export default {
   font-size: 1rem;
   font-weight: 600;
   color: #4b5563;
-  padding: 16px 28px 12px 28px;
+  padding: 16px 24px 12px 28px;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   transition: color 0.2s, border-bottom 0.2s;
@@ -170,7 +202,7 @@ export default {
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   width: 100%;
   max-width: 1200px;
-  padding: 32px 40px 40px 40px;
+  padding: 20px 40px;
   text-align: left;
 }
 .cb-content h2 {
@@ -208,7 +240,7 @@ export default {
 }
 .cb-form input[type="email"] {
   width: 100%;
-  padding: 8px 12px;
+  padding: 4px 12px;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 1rem;

@@ -11,10 +11,10 @@ function mountApp(component, selector) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('my-vue-admin-app')) {
-        mountApp(AdminApp, '#my-vue-admin-app')
+    if (document.getElementById('cb-fake-post-admin-app')) {
+        mountApp(AdminApp, '#cb-fake-post-admin-app')
     } else {
-        mountApp(AdminApp, '#my-vue-admin-app')
+        mountApp(AdminApp, '#cb-fake-post-admin-app')
     }
 })
 

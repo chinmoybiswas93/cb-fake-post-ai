@@ -3,4 +3,4 @@ if ( ! defined('ABSPATH')) {
     exit;
 }
 ?>
-<div id="my-vue-admin-app"></div>
+<div id="cb-fake-post-admin-app"></div>

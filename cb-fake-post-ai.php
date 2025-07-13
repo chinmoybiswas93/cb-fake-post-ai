@@ -1,7 +1,5 @@
 <?php
 /**
- * WordPress - CB Fake Post Ai
- *
  * Plugin Name:         CB Fake Post Ai
  * Plugin URI:          https://wordpress.org/plugins/cb-fake-post-ai
  * Description:         Plugins short description
