@@ -230,15 +230,13 @@ export default {
 <style scoped>
 .tools-container {
   max-width: 800px;
+  margin-top: 20px;
 }
 
 .tools-section {
   margin-bottom: 40px;
-  padding: 24px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .section-title {

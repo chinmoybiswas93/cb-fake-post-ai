@@ -150,11 +150,24 @@ export default {
 
         if (response.ok) {
           const result = await response.json();
+          console.log('Loaded settings:', result);
           if (result.success && result.data) {
-            this.settings = { ...this.settings, ...result.data };
+            const data = result.data;
+            
+            // Map backend field names to frontend field names
+            this.settings = {
+              numPostsMin: data.numPostsMin || 1,
+              numPostsMax: data.numPostsMax || 5,
+              titleMin: data.titleMin || 3,
+              titleMax: data.titleMax || 8,
+              contentMin: data.contentMin || 30,
+              contentMax: data.contentMax || 100,
+              categories: data.selected_categories || []
+            };
+            
             // Update form credit value if it exists
-            if (result.data.credit) {
-              this.form.credit = result.data.credit;
+            if (data.credit) {
+              this.form.credit = data.credit;
             }
           }
         }
@@ -192,6 +205,7 @@ export default {
     },
 
     async handleSubmit() {
+      console.log('Submitting settings:', this.settings);
       // Validate values
       if (
         this.settings.numPostsMin < 1 ||
@@ -208,11 +222,24 @@ export default {
       this.isSaving = true;
       
       try {
+        // Map frontend field names to backend field names
         const settingsData = {
-          ...this.settings,
+          // Legacy fields for backward compatibility
+          posts_count: this.settings.numPostsMax,
+          title_words: this.settings.titleMax,
+          content_paragraphs: Math.ceil(this.settings.contentMax / 50),
+          selected_categories: this.settings.categories || [],
           credit: this.form.credit,
-          categories: this.settings.categories || []
+          // Range values for frontend
+          numPostsMin: this.settings.numPostsMin,
+          numPostsMax: this.settings.numPostsMax,
+          titleMin: this.settings.titleMin,
+          titleMax: this.settings.titleMax,
+          contentMin: this.settings.contentMin,
+          contentMax: this.settings.contentMax
         };
+
+        console.log('Sending settings data:', settingsData);
 
         const response = await fetch(window.SuitePressSettings.settingsRestUrl, {
           method: 'POST',
@@ -224,6 +251,7 @@ export default {
         });
 
         const result = await response.json();
+        console.log('Save response:', result);
 
         if (response.ok && result.success) {
           // Show different messages based on whether settings changed
@@ -231,6 +259,7 @@ export default {
           this.success(message);
         } else {
           const errorMessage = result.message || 'Failed to save settings';
+          console.error('Save failed:', result);
           this.error(errorMessage);
         }
       } catch (error) {
@@ -258,22 +287,38 @@ export default {
       this.isGenerating = true;
       
       try {
+        // Generate random values within the specified ranges
+        const postsCount = Math.floor(Math.random() * (this.settings.numPostsMax - this.settings.numPostsMin + 1)) + this.settings.numPostsMin;
+        const titleWords = Math.floor(Math.random() * (this.settings.titleMax - this.settings.titleMin + 1)) + this.settings.titleMin;
+        const contentParagraphs = Math.ceil(Math.random() * (this.settings.contentMax - this.settings.contentMin + 1) / 50) + Math.ceil(this.settings.contentMin / 50);
+
+        const postData = {
+          posts_count: postsCount,
+          title_words: titleWords,
+          content_paragraphs: contentParagraphs,
+          selected_categories: this.settings.categories || []
+        };
+
+        console.log('Generating posts with data:', postData);
+
         const response = await fetch(window.SuitePressSettings.generatePostsUrl, {
           method: 'POST',
           headers: {
             'X-WP-Nonce': window.SuitePressSettings.nonce,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(this.settings)
+          body: JSON.stringify(postData)
         });
 
         const result = await response.json();
+        console.log('Generate response:', result);
 
         if (response.ok && result.success) {
           const message = result.message || 'Posts generated successfully!';
           this.success(message);
         } else {
           const errorMessage = result.message || 'Failed to generate posts';
+          console.error('Generation failed:', result);
           this.error(errorMessage);
         }
       } catch (error) {

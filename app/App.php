@@ -18,7 +18,6 @@ class App {
         define( 'CB_FAKE_POST_AI_BUILD_URL', CB_FAKE_POST_AI_URL . '/public/assets' );
         define( 'CB_FAKE_POST_AI_VERSION', '1.0.0' );
 
-
        new AdminMenuHandlers();
        new RestApiHandlers();
     }
